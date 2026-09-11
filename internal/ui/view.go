@@ -13,10 +13,10 @@ import (
 
 const gutterWidth = 3 // string-name column, e.g. " e "
 
-// openWidth is the open-string cell before the nut, sized so the widest
-// label of the current display mode fits.
+// openWidth is the open-string cell before the nut. It matches a fret cell
+// so open-string labels get the same room and highlight treatment.
 func (m Model) openWidth() int {
-	return m.cellWidth() - 2
+	return m.cellWidth()
 }
 
 func (m Model) View() tea.View {
@@ -206,16 +206,19 @@ func (m Model) renderCell(pos music.Position, lens music.Lens, flats bool, w int
 }
 
 // centerLabel centers a styled label inside a cell of width w, filling the
-// remainder with the string-line rune.
+// remainder with the string-line rune. A padded (highlighted) label is
+// widened with spaces to fill the whole cell, so every highlight is the same
+// size regardless of how long its label is.
 func centerLabel(label string, w int, fill string, st, lineSt lipgloss.Style, pad bool) string {
 	r := []rune(label)
-	if pad && len(r)+2 <= w {
-		label = " " + label + " "
-		r = []rune(label)
-	}
 	if len(r) > w {
 		r = r[:w]
 		label = string(r)
+	}
+	if pad && len(r) < w {
+		l := (w - len(r)) / 2
+		label = strings.Repeat(" ", l) + label + strings.Repeat(" ", w-len(r)-l)
+		r = []rune(label)
 	}
 	left := (w - len(r)) / 2
 	right := w - len(r) - left

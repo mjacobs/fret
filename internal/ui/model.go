@@ -116,13 +116,12 @@ func (m Model) cursorNote() music.Note {
 	return m.tuning().Open[m.curStr].Add(m.curFret)
 }
 
-// cellWidth is the column width of one fret cell, sized for the label mode.
-func (m Model) cellWidth() int {
-	if m.display == displayBoth {
-		return 7
-	}
-	return 5
-}
+// cellWidth is the column width of one fret cell. It is fixed across label
+// modes so cycling labels never reflows the board: the widest label,
+// note·degree such as "F#·b3", is exactly five runes.
+const cellWidth = 5
+
+func (m Model) cellWidth() int { return cellWidth }
 
 // visibleFrets caps the rendered neck at what fits the terminal width.
 func (m Model) visibleFrets() int {

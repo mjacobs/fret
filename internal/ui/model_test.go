@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 func sized(m Model) Model {
@@ -121,5 +122,40 @@ func TestDisplayAndSpellingCycle(t *testing.T) {
 	m = press(t, m, "n")
 	if m.display != displayNotes {
 		t.Errorf("display = %v, want notes", m.display)
+	}
+}
+
+// Cycling label modes must never reflow the board: the same number of frets
+// stays visible and every rendered line keeps its width.
+func TestLabelModesKeepBoardWidth(t *testing.T) {
+	m := sized(NewModel())
+	want := lipgloss.Width(m.renderBoard())
+	wantFrets := m.visibleFrets()
+	for _, mode := range []displayMode{displayNotes, displayBoth, displayDegrees} {
+		m = press(t, m, "n")
+		if m.display != mode {
+			t.Fatalf("display = %v, want %v", m.display, mode)
+		}
+		if got := lipgloss.Width(m.renderBoard()); got != want {
+			t.Errorf("mode %v: board width %d, want %d", mode, got, want)
+		}
+		if got := m.visibleFrets(); got != wantFrets {
+			t.Errorf("mode %v: visible frets %d, want %d", mode, got, wantFrets)
+		}
+	}
+}
+
+// A highlighted cell always spans the full cell width, however long its
+// label, so cursor and root highlights are the same size everywhere.
+func TestHighlightFillsCell(t *testing.T) {
+	st := lipgloss.NewStyle()
+	for _, label := range []string{"1", "b3", "C·1", "F#·b3"} {
+		out := centerLabel(label, cellWidth, "─", st, st, true)
+		if strings.Contains(out, "─") {
+			t.Errorf("padded label %q left string fill in cell: %q", label, out)
+		}
+		if w := lipgloss.Width(out); w != cellWidth {
+			t.Errorf("padded label %q width %d, want %d", label, w, cellWidth)
+		}
 	}
 }
