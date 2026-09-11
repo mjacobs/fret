@@ -150,12 +150,59 @@ func TestLabelModesKeepBoardWidth(t *testing.T) {
 func TestHighlightFillsCell(t *testing.T) {
 	st := lipgloss.NewStyle()
 	for _, label := range []string{"1", "b3", "C·1", "F#·b3"} {
-		out := centerLabel(label, cellWidth, "─", st, st, true)
+		out := placeLabel(label, 1, cellWidth, "─", st, st, true)
 		if strings.Contains(out, "─") {
 			t.Errorf("padded label %q left string fill in cell: %q", label, out)
 		}
 		if w := lipgloss.Width(out); w != cellWidth {
 			t.Errorf("padded label %q width %d, want %d", label, w, cellWidth)
+		}
+	}
+}
+
+// Labels are anchored to fixed columns so neighbouring cells line up: the
+// note letter, the degree digit, and the "both" separator never move as the
+// label length changes.
+func TestLabelSlotsAlign(t *testing.T) {
+	st := lipgloss.NewStyle()
+	cell := func(label string, at int) string {
+		return placeLabel(label, at, cellWidth, "─", st, st, false)
+	}
+	cases := []struct {
+		label string
+		at    int
+		want  string
+	}{
+		{"F", noteCol, "──F──"},
+		{"F#", noteCol, "──F#─"},
+		{"5", degreeCol, "──5──"},
+		{"b3", degreeCol - 1, "─b3──"},
+		{"F·5", 1, "─F·5─"},
+		{"Eb·4", 0, "Eb·4─"},
+		{"F#·b3", 0, "F#·b3"},
+		{"A·R", 1, "─A·R─"},
+	}
+	for _, c := range cases {
+		if got := cell(c.label, c.at); got != c.want {
+			t.Errorf("place(%q, %d) = %q, want %q", c.label, c.at, got, c.want)
+		}
+	}
+	for _, c := range []struct {
+		name, deg string
+		at        int
+	}{
+		{"F", "5", 1}, {"Eb", "4", 0}, {"F#", "b3", 0}, {"A", "R", 1},
+	} {
+		if _, at := bothSlot(c.name, c.deg); at != c.at {
+			t.Errorf("bothSlot(%q,%q) at %d, want %d", c.name, c.deg, at, c.at)
+		}
+	}
+	for _, c := range []struct {
+		deg string
+		at  int
+	}{{"5", 2}, {"b3", 1}, {"R", 2}} {
+		if _, at := degreeSlot(c.deg); at != c.at {
+			t.Errorf("degreeSlot(%q) at %d, want %d", c.deg, at, c.at)
 		}
 	}
 }

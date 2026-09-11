@@ -152,18 +152,19 @@ func (m Model) renderCell(pos music.Position, lens music.Lens, flats bool, w int
 	isPinned := m.pins[[2]int{pos.String, pos.Fret}]
 
 	var label string
+	var at int
 	switch {
 	case pos.InSet:
 		switch m.display {
 		case displayNotes:
-			label = pos.Note.Name(flats)
+			label, at = noteSlot(pos.Note.Name(flats))
 		case displayBoth:
-			label = pos.Note.Name(flats) + "·" + pos.Degree
+			label, at = bothSlot(pos.Note.Name(flats), pos.Degree)
 		default:
-			label = pos.Degree
+			label, at = degreeSlot(pos.Degree)
 		}
 	case isCursor || isPinned:
-		label = pos.Note.Name(flats)
+		label, at = noteSlot(pos.Note.Name(flats))
 	}
 
 	if label == "" {
@@ -202,26 +203,57 @@ func (m Model) renderCell(pos music.Position, lens music.Lens, flats bool, w int
 		st = st.Underline(true)
 	}
 
-	return centerLabel(label, w, fill, st, stringStyle, pad)
+	return placeLabel(label, at, w, fill, st, stringStyle, pad)
 }
 
-// centerLabel centers a styled label inside a cell of width w, filling the
-// remainder with the string-line rune. A padded (highlighted) label is
-// widened with spaces to fill the whole cell, so every highlight is the same
-// size regardless of how long its label is.
-func centerLabel(label string, w int, fill string, st, lineSt lipgloss.Style, pad bool) string {
+// Label slots. Every label is placed at a fixed column inside the cell so the
+// board never jitters as label lengths vary from cell to cell: the note letter
+// always sits in the same column, the degree digit always sits in the same
+// column, and in "both" mode the separator dot is anchored between them.
+//
+//	col:    0  1  2  3  4
+//	note:         L  ♯          letter at 2, accidental after
+//	degree:    ♭  D             digit at 2, accidental before
+//	both:   L  ♯  ·  ♭  D       dot at 2
+const (
+	noteCol   = 2 // column of the note letter in notes mode
+	degreeCol = 2 // column of the degree digit (or R) in degrees mode
+	dotCol    = 2 // column of the separator in "both" mode
+)
+
+// noteSlot anchors a note name ("F", "F#") by its letter.
+func noteSlot(name string) (string, int) { return name, noteCol }
+
+// degreeSlot anchors a degree ("5", "b3", "R") by its final rune.
+func degreeSlot(deg string) (string, int) {
+	return deg, degreeCol - (len([]rune(deg)) - 1)
+}
+
+// bothSlot joins note and degree around a dot anchored at dotCol.
+func bothSlot(name, deg string) (string, int) {
+	return name + "·" + deg, dotCol - len([]rune(name))
+}
+
+// placeLabel renders a styled label starting at column at inside a cell of
+// width w, filling the remainder with the string-line rune. A padded
+// (highlighted) label instead fills the whole cell with spaces around it, so
+// every highlight is the same size regardless of how long its label is.
+func placeLabel(label string, at, w int, fill string, st, lineSt lipgloss.Style, pad bool) string {
 	r := []rune(label)
-	if len(r) > w {
-		r = r[:w]
-		label = string(r)
+	if at < 0 {
+		at = 0
 	}
-	if pad && len(r) < w {
-		l := (w - len(r)) / 2
-		label = strings.Repeat(" ", l) + label + strings.Repeat(" ", w-len(r)-l)
-		r = []rune(label)
+	if at+len(r) > w {
+		if len(r) > w {
+			r = r[:w]
+		}
+		at = w - len(r)
 	}
-	left := (w - len(r)) / 2
-	right := w - len(r) - left
+	label = string(r)
+	left, right := at, w-at-len(r)
+	if pad {
+		return st.Render(strings.Repeat(" ", left) + label + strings.Repeat(" ", right))
+	}
 	return lineSt.Render(strings.Repeat(fill, left)) + st.Render(label) + lineSt.Render(strings.Repeat(fill, right))
 }
 
